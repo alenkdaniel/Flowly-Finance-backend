@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
@@ -10,6 +11,8 @@ const __dirname = path.dirname(__filename);
 
 import authRoutes from "./routes/authRoutes.js";
 import kycRoutes from "./routes/kycRoutes.js";
+import videoKycRoutes from "./routes/videoKycRoutes.js";
+import { initVideoKycSocket } from "./sockets/videoKycSocket.js";
 import calculatorRoutes from "./routes/calculatorRoutes.js";
 import depositRoutes from "./routes/depositRoutes.js";
 import loanRoutes from "./routes/loanRoutes.js";
@@ -36,6 +39,7 @@ app.use(express.json());
 // Serve uploaded KYC documents (images/PDFs) as static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+
 // Health Check
 app.get("/", (req, res) => {
   res.json({
@@ -48,6 +52,7 @@ app.get("/", (req, res) => {
       "Savings & Fixed Deposit Management",
       "Loan Products, Applications, Worker Approvals & Disbursement",
       "Customer Dashboard & Financial Metrics",
+      "Video KYC (WebRTC scheduling, calls & recording)",
       "User Notifications System",
       "EMI Repayments & Payment Gateway Integration",
     ],
@@ -57,6 +62,7 @@ app.get("/", (req, res) => {
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/kyc", kycRoutes);
+app.use("/api/video-kyc", videoKycRoutes);
 app.use("/api/calculator", calculatorRoutes);
 app.use("/api/deposits", depositRoutes);
 app.use("/api/loans", loanRoutes);
@@ -86,7 +92,11 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+// HTTP server shared by Express and the Video KYC (Socket.IO) signaling
+const server = http.createServer(app);
+initVideoKycSocket(server);
+
+server.listen(PORT, () => {
   console.log(`Server running on port http://localhost:${PORT}`);
 });
 

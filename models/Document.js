@@ -10,13 +10,30 @@ const documentSchema = new mongoose.Schema(
 
     documentType: {
       type: String,
-      enum: ["aadhaar", "pan", "salary_slip", "bank_statement"],
+      enum: ["aadhaar", "pan", "selfie", "salary_slip", "bank_statement"],
       required: true,
     },
 
+    // Cloudinary (signed) URL of the stored file
     fileUrl: {
       type: String,
       required: true,
+    },
+
+    // Cloudinary details - needed to delete/re-sign the file later
+    publicId: {
+      type: String,
+    },
+
+    resourceType: {
+      type: String,
+      default: "image",
+    },
+
+    storageProvider: {
+      type: String,
+      enum: ["cloudinary", "local", "external"],
+      default: "cloudinary",
     },
 
     verificationStatus: {

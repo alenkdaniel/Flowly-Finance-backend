@@ -7,18 +7,20 @@ import {
   startKycReview,
   approveKyc,
   rejectKyc,
+  retryKycOcr,
 } from "../controllers/kycController.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
-import { uploadKycDocument } from "../middleware/uploadMiddleware.js";
+import { uploadKycFiles } from "../middleware/uploadMiddleware.js";
 
 const router = express.Router();
 
 // Customer KYC routes
+// multipart/form-data fields: pan, aadhaar, selfie (optional), document (legacy)
 router.post(
   "/submit",
   protect,
   authorize("customer"),
-  uploadKycDocument.single("document"),
+  uploadKycFiles,
   submitKYC
 );
 router.get("/status", protect, authorize("customer"), getKYCStatus);
@@ -29,5 +31,6 @@ router.get("/:id", protect, authorize("worker", "admin"), getKycDetail);
 router.put("/:id/start-review", protect, authorize("worker", "admin"), startKycReview);
 router.put("/:id/approve", protect, authorize("worker", "admin"), approveKyc);
 router.put("/:id/reject", protect, authorize("worker", "admin"), rejectKyc);
+router.post("/:id/ocr/retry", protect, authorize("worker", "admin"), retryKycOcr);
 
 export default router;
