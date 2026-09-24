@@ -8,10 +8,22 @@ const paymentSchema = new mongoose.Schema(
       required: true,
     },
 
+    // What this payment is for. Only one of `loan` / `account` is populated,
+    // matching `purpose`.
+    purpose: {
+      type: String,
+      enum: ["loan_repayment", "account_topup"],
+      default: "loan_repayment",
+    },
+
     loan: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "LoanApplication",
-      required: true,
+    },
+
+    account: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Account",
     },
 
     amount: {

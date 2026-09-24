@@ -61,6 +61,56 @@ export const uploadKycFile = (buffer, { userId, kind }) => {
   });
 };
 
+/**
+ * Upload a generated FD certificate PDF (in-memory buffer) to Cloudinary.
+ * Unlike KYC files, a certificate is meant to be openable by the customer
+ * straight from an emailed/notified link, so it is uploaded as a normal
+ * public "upload" resource rather than the "authenticated" type used for
+ * private KYC documents.
+ *
+ * @param {Buffer} buffer
+ * @param {{ userId: string, fdNumber: string }} meta
+ * @returns {Promise<{ url: string, publicId: string, resourceType: string, format: string, bytes: number }>}
+ */
+export const uploadFDCertificate = (buffer, { userId, fdNumber }) => {
+  if (!isCloudinaryConfigured()) {
+    return Promise.reject(
+      new Error(
+        "Cloudinary is not configured (set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)"
+      )
+    );
+  }
+
+  const root = process.env.CLOUDINARY_FOLDER || "flowly";
+
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `${root}/fd-certificates/${userId}`,
+        public_id: `${fdNumber}-certificate`,
+        resource_type: "raw", // PDF
+        type: "upload", // publicly fetchable, unlike KYC's "authenticated" files
+        overwrite: true,
+        format: "pdf",
+        tags: ["fd", "certificate"],
+      },
+      (error, result) => {
+        if (error) return reject(error);
+
+        resolve({
+          url: result.secure_url,
+          publicId: result.public_id,
+          resourceType: result.resource_type || "raw",
+          format: result.format || "pdf",
+          bytes: result.bytes,
+        });
+      }
+    );
+
+    stream.end(buffer);
+  });
+};
+
 /** Best-effort delete (used to clean up if a later step of a submission fails). */
 export const deleteKycFile = async ({ publicId, resourceType = "image" }) => {
   try {

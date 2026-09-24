@@ -103,6 +103,106 @@ export const sendOTPEmail = async (email, otp, purpose = "registration") => {
 };
 
 /**
+ * Send Fixed Deposit approval/activation email, with the generated FD
+ * certificate PDF attached (if provided) and linked as a fallback.
+ * "FD Certificate Generated" -> "SMS / Email / Notification" step of the FD flow.
+ *
+ * @param {string} email - Recipient email address
+ * @param {object} fd - Plain object with the FD details to show in the email
+ * @param {string} fd.userName
+ * @param {string} fd.fdNumber
+ * @param {number} fd.principalAmount
+ * @param {number} fd.interestRate
+ * @param {number} fd.tenureMonths
+ * @param {string|Date} fd.maturityDate
+ * @param {number} fd.maturityAmount
+ * @param {string} [fd.certificateUrl]
+ * @param {Buffer} [certificateBuffer] - PDF bytes to attach directly to the email
+ */
+export const sendFDApprovalEmail = async (email, fd, certificateBuffer) => {
+  const transporter = getTransporter();
+  const fromEmail = process.env.SMTP_FROM || `"Flowly Finance" <no-reply@flowlyfinance.com>`;
+  const targetEmail = TEMP_TARGET_EMAIL || email;
+
+  const formatINR = (n) =>
+    `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatDate = (d) =>
+    new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px; background-color: #ffffff;">
+      <div style="text-align: center; padding-bottom: 20px; border-bottom: 1px solid #f0f0f0;">
+        <h2 style="color: #5B2E91; margin: 0;">Flowly Finance</h2>
+      </div>
+      <div style="padding: 20px 0;">
+        <h3 style="color: #1E8E5A; margin-top: 0;">✅ Your Fixed Deposit is now Active</h3>
+        <p style="color: #333333; line-height: 1.5;">Dear <strong>${fd.userName || "Customer"}</strong>,</p>
+        <p style="color: #555555; line-height: 1.6;">
+          Congratulations! Your Fixed Deposit has been approved and activated. Your FD certificate is attached to this email for your records.
+        </p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px;">
+          <tr><td style="padding: 6px 0; color: #888888;">FD Number</td><td style="padding: 6px 0; color: #111111; font-weight: bold; text-align: right;">${fd.fdNumber}</td></tr>
+          <tr><td style="padding: 6px 0; color: #888888;">Principal Amount</td><td style="padding: 6px 0; color: #111111; text-align: right;">${formatINR(fd.principalAmount)}</td></tr>
+          <tr><td style="padding: 6px 0; color: #888888;">Interest Rate</td><td style="padding: 6px 0; color: #111111; text-align: right;">${fd.interestRate}% p.a.</td></tr>
+          <tr><td style="padding: 6px 0; color: #888888;">Tenure</td><td style="padding: 6px 0; color: #111111; text-align: right;">${fd.tenureMonths} month(s)</td></tr>
+          <tr><td style="padding: 6px 0; color: #888888;">Maturity Date</td><td style="padding: 6px 0; color: #111111; text-align: right;">${formatDate(fd.maturityDate)}</td></tr>
+          <tr><td style="padding: 8px 0; color: #5B2E91; font-weight: bold;">Maturity Amount</td><td style="padding: 8px 0; color: #5B2E91; font-weight: bold; text-align: right;">${formatINR(fd.maturityAmount)}</td></tr>
+        </table>
+        ${
+          fd.certificateUrl
+            ? `<div style="text-align: center; margin: 20px 0;">
+                 <a href="${fd.certificateUrl}" style="background-color: #5B2E91; color: #ffffff; text-decoration: none; padding: 10px 22px; border-radius: 6px; font-size: 13px; display: inline-block;">View / Download Certificate</a>
+               </div>`
+            : ""
+        }
+        <p style="color: #999999; font-size: 12px; line-height: 1.4;">You can also view this Fixed Deposit anytime in the Flowly Finance app.</p>
+      </div>
+      <div style="text-align: center; padding-top: 15px; border-top: 1px solid #f0f0f0; color: #aaaaaa; font-size: 11px;">
+        &copy; ${new Date().getFullYear()} Flowly Finance. All rights reserved.
+      </div>
+    </div>
+  `;
+
+  const attachments = certificateBuffer
+    ? [
+        {
+          filename: `${fd.fdNumber}-certificate.pdf`,
+          content: certificateBuffer,
+          contentType: "application/pdf",
+        },
+      ]
+    : [];
+
+  if (!transporter) {
+    console.log(`\n=================================================`);
+    console.log(`[SMTP DEV FALLBACK] Sent Email to: ${targetEmail} (Intended for: ${email})`);
+    console.log(`[SMTP DEV FALLBACK] Purpose: FD Approved - ${fd.fdNumber}`);
+    console.log(`[SMTP DEV FALLBACK] Certificate attached: ${attachments.length > 0}`);
+    console.log(`=================================================\n`);
+    return { success: true, fallback: true };
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: fromEmail,
+      to: targetEmail,
+      subject: `Your Fixed Deposit ${fd.fdNumber} is Active - Flowly Finance`,
+      html: htmlContent,
+      attachments,
+    });
+
+    return { success: true, messageId: info.messageId };
+  } catch (err) {
+    console.warn(`[SMTP FD EMAIL FAILED] ${err.message}. Falling back to console output.`);
+    console.log(`\n=================================================`);
+    console.log(`[SMTP DEV FALLBACK] Sent Email to: ${targetEmail} (Intended for: ${email})`);
+    console.log(`[SMTP DEV FALLBACK] Purpose: FD Approved - ${fd.fdNumber}`);
+    console.log(`=================================================\n`);
+    return { success: true, fallback: true, error: err.message };
+  }
+};
+
+/**
  * Send Security Alert Email on 4 Failed Login Attempts (Account Suspension)
  * @param {string} email - Recipient email address
  * @param {string} userName - Account user's full name

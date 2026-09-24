@@ -28,7 +28,7 @@ async function getStripe() {
 
     try {
       const Stripe = (await import("stripe")).default;
-      stripeInstance = Stripe(process.env.STRIPE_SECRET_KEY);
+      stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
     } catch {
       console.warn("Stripe package not found or key missing. Operating in fallback mock mode.");
       stripeInstance = {

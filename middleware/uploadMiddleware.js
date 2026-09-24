@@ -57,3 +57,26 @@ export const uploadKycFiles = (req, res, next) => {
     return res.status(400).json({ success: false, message });
   });
 };
+
+// Single optional supporting document — used when a customer responds to a
+// worker's "Request More Information" on a Fixed Deposit.
+const fdInfoUpload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 8 * 1024 * 1024, files: 1 },
+}).single("document");
+
+export const uploadFDSupportingDoc = (req, res, next) => {
+  fdInfoUpload(req, res, (err) => {
+    if (!err) return next();
+
+    let message = err.message;
+    if (err instanceof multer.MulterError) {
+      message =
+        err.code === "LIMIT_FILE_SIZE"
+          ? "File must be 8 MB or smaller"
+          : `Upload error: ${err.message}`;
+    }
+    return res.status(400).json({ success: false, message });
+  });
+};

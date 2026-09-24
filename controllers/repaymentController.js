@@ -4,6 +4,7 @@ import Notification from "../models/Notification.js";
 import Account from "../models/Account.js";
 import { generateSchedule, round2 } from "../utils/emiCalculator.js";
 import paymentGateway from "../services/paymentGateway.js";
+import { creditAccountTopUpFromIntent } from "./depositController.js";
 
 export async function generateScheduleOnDisbursal(loanId) {
   const loan = await LoanApplication.findById(loanId);
@@ -113,6 +114,18 @@ export async function handlePaymentWebhook(req, res) {
   }
 
   const intent = event.data ? event.data.object : event;
+
+  // Dispatch by purpose: account top-ups (FD "Add Money" step) vs. loan EMI
+  // repayments share this one Stripe webhook endpoint.
+  if (intent.metadata?.purpose === "account_topup") {
+    try {
+      await creditAccountTopUpFromIntent(intent);
+      return res.status(200).json({ received: true });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+
   const { loanId, installmentNo } = intent.metadata || {};
   if (!loanId || !installmentNo) {
     return res.status(400).json({ message: "Missing loan metadata on payment intent" });
